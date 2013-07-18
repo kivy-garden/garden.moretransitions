@@ -161,3 +161,87 @@ class RVBTransition(ShaderTransition):
         self.render_ctx['resolution'] = map(float, self.screen_out.size)
         super(RVBTransition, self).on_progress(progress)
 
+
+class RotateTransition(ShaderTransition):
+    '''Rotate transition.
+    '''
+
+    direction = OptionProperty('left', options=('left', 'right', 'up', 'down'))
+    '''Direction of the transition.
+
+    :data:`direction` is an :class:`~kivy.properties.OptionProperty`, default
+    to left. Can be one of 'left', 'right', 'up' or 'down'.
+    '''
+
+    ROTATE_TRANSITION_HEADER = '''
+        $HEADER$
+        uniform float t;
+        uniform sampler2D tex_in;
+        uniform sampler2D tex_out;
+        const vec4 shadow = vec4(0.0, 0.0, 0.0, 1.0);
+        const float shadow_pow = 0.5;
+
+        void main(void) {
+    '''
+
+    ROTATE_TRANSITION_FOOTER = '''
+        vec4 cnew = cout;
+        float light = pow(1.0-tt, shadow_pow);
+        if ( tt + pos > 1.0) {
+            cnew = cin;
+            light=pow(tt, shadow_pow);
+        }
+        gl_FragColor = cnew*light*frag_color;
+    }'''
+
+    ROTATE_TRANSITION_LEFT = ROTATE_TRANSITION_HEADER + '''
+        float tt = t;
+        float pos = tex_coord0.x;
+        vec4 cin = texture2D(tex_in,
+                             vec2(1.0-(1.0-tex_coord0.x)/tt, tex_coord0.y));
+        vec4 cout = texture2D(tex_out,
+                              vec2(tex_coord0.x/(1.0-tt), tex_coord0.y));
+    ''' + ROTATE_TRANSITION_FOOTER
+
+    ROTATE_TRANSITION_RIGHT = ROTATE_TRANSITION_HEADER + '''
+        float tt = 1.0 - t;
+        float pos = tex_coord0.x;
+        vec4 cin = texture2D(tex_out,
+                             vec2(1.0-(1.0-tex_coord0.x)/tt, tex_coord0.y));
+        vec4 cout = texture2D(tex_in,
+                              vec2(tex_coord0.x/(1.0-tt), tex_coord0.y));
+    ''' + ROTATE_TRANSITION_FOOTER
+
+    ROTATE_TRANSITION_UP = ROTATE_TRANSITION_HEADER + '''
+        float tt = t;
+        float pos = tex_coord0.y;
+        vec4 cin = texture2D(tex_in,
+                             vec2(tex_coord0.x, 1.0-(1.0-tex_coord0.y)/tt));
+        vec4 cout = texture2D(tex_out,
+                              vec2(tex_coord0.x, tex_coord0.y/(1.0-tt)));
+    ''' + ROTATE_TRANSITION_FOOTER
+
+    ROTATE_TRANSITION_DOWN = ROTATE_TRANSITION_HEADER + '''
+        float tt = 1.0 - t;
+        float pos = tex_coord0.y;
+        vec4 cin = texture2D(tex_out,
+                             vec2(tex_coord0.x, 1.0-(1.0-tex_coord0.y)/tt));
+        vec4 cout = texture2D(tex_in,
+                              vec2(tex_coord0.x, tex_coord0.y/(1.0-tt)));
+    ''' + ROTATE_TRANSITION_FOOTER
+
+    fs = StringProperty(ROTATE_TRANSITION_LEFT)
+
+    def __init__(self, **kwargs):
+        self.on_direction(kwargs.get('direction', 'left'))
+        super(RotateTransition, self).__init__(**kwargs)
+
+    def on_direction(self, *largs):
+        if largs[0] == 'left':
+            self.fs = self.ROTATE_TRANSITION_LEFT
+        if largs[0] == 'right':
+            self.fs = self.ROTATE_TRANSITION_RIGHT
+        if largs[0] == 'up':
+            self.fs = self.ROTATE_TRANSITION_UP
+        if largs[0] == 'down':
+            self.fs = self.ROTATE_TRANSITION_DOWN
