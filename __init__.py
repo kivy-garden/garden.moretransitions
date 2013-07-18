@@ -17,6 +17,8 @@ or
 
 '''
 
+from kivy.uix.screenmanager import ShaderTransition
+from kivy.properties import StringProperty, OptionProperty
 
 class PixelTransition(ShaderTransition):
 
