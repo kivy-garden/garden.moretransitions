@@ -17,6 +17,14 @@ or
 
 '''
 
+__all__ = (
+    'PixelTransition',
+    'RippleTransition',
+    'BlurTransition',
+    'RVBTransition',
+    'RotateTransition'
+)
+
 from kivy.uix.screenmanager import ShaderTransition
 from kivy.properties import StringProperty, OptionProperty
 
