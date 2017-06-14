@@ -1,3 +1,7 @@
+<img src="https://github.com/kivy-garden/garden.moretransitions/blob/master/screenshot.png" align="right" width="256" />
+
+
+
 garden.moretransitions
 ======================
 
