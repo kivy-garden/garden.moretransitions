@@ -106,15 +106,16 @@ class BlurTransition(ShaderTransition):
         void main (void) {
             vec2 center = vec2(0.5,0.5);
             vec2 toUV = tex_coord0.st - center;
-            vec2 normToUV = toUV;
 
             vec4 c1 = vec4(0,0,0,0);
             int count = 24;
             float s = t * 0.02;
 
             for(int i=0; i<count; i++)
-                c1 += vec4(texture2D(tex_out, tex_coord0.st -
-                                     normToUV * vec2(s,s) * vec2(i,i)));
+                c1 += texture2D(
+                    tex_out,
+                    tex_coord0.st - toUV * vec2(s,s) * vec2(i,i)
+                );
 
             c1 /= vec4(count,count,count,count);
             vec4 c2 = vec4(texture2D(tex_in, tex_coord0.st));
@@ -255,3 +256,105 @@ class RotateTransition(ShaderTransition):
             self.fs = self.ROTATE_TRANSITION_UP
         if largs[0] == 'down':
             self.fs = self.ROTATE_TRANSITION_DOWN
+
+
+class FastSlideTransition(ShaderTransition):
+    FAST_SLIDE_TRANSITION_LEFT = '''
+    $HEADER$
+    uniform float t;
+    uniform sampler2D tex_in;
+    uniform sampler2D tex_out;
+
+    uniform vec2 resolution;
+
+    float BLURMAX = 50.;
+    void main(void){
+        vec4 c = vec4(0., 0., 0., 0.);
+        if (tex_coord0.x < 1. - t) {
+            float squash = mix(.95, 1., pow(1. - t, 2.));
+            float y = .5 + (tex_coord0.y - .5) / squash;
+            float x = tex_coord0.x + smoothstep(0., 1., t);
+
+            if (0. < y && y < 1.) {
+                for (float n=0.; n < BLURMAX; n+=1.)
+                    c += texture2D(tex_out, vec2(x + n / 1920., y)) / BLURMAX;
+                gl_FragColor = mix(c, texture2D(tex_out, vec2(x, y)), pow(1. - t, 5.));
+            } else
+                gl_FragColor = vec4(0, 0, 0, 0);
+        } else {
+            float squash = mix(.95, 1., pow(t, 2.));
+            float y = .5 + (tex_coord0.y - .5) / squash;
+            float x = tex_coord0.x - 1. + smoothstep(0., 1., t);
+
+            if (0. < y && y < 1.) {
+                for (float n=0.; n < BLURMAX; n+=1.)
+                    c += texture2D(tex_in, vec2(x + n / 1920., y)) / BLURMAX;
+                gl_FragColor = mix(c, texture2D(tex_in, vec2(x, y)), pow(t, 5.));
+            } else
+                gl_FragColor = vec4(0, 0, 0, 0);
+        }
+    }
+    '''  # noqa
+    fs = StringProperty(FAST_SLIDE_TRANSITION_LEFT)
+
+
+KV = '''
+FloatLayout:
+    ScreenManager:
+        id: sm
+        Screen:
+            name: '0'
+            Image:
+                source: '../examples/demo/pictures/images/Bubbles.jpg'
+                allow_stretch: True
+        Screen:
+            name: '1'
+            Image:
+                source: '../examples/demo/pictures/images/faust_github.jpg'
+                allow_stretch: True
+
+    GridLayout:
+        id: box
+        size_hint: .5, .2
+        pos_hint: {'center_x': .5, 'y': 0}
+        cols: 2
+
+    Button:
+        text: 'previous'
+        size_hint: None, None
+        size: 100, 48
+        pos_hint: {'center_y': .5}
+        on_press: sm.current = sm.previous()
+
+    Button:
+        text: 'next'
+        size_hint: None, None
+        size: 100, 48
+        pos_hint: {'center_y': .5, 'right': 1}
+        on_press: sm.current = sm.next()
+'''
+
+if __name__ == '__main__':
+    transitions = {
+        k: v(duration=.5) for k, v in globals().items()
+        if isinstance(v, type) and
+        issubclass(v, ShaderTransition)
+    }
+
+    from kivy.lang import Builder
+    from kivy.base import runTouchApp
+    from kivy.factory import Factory
+
+    root = Builder.load_string(KV)
+
+    def update_transition(button):
+        root.ids.sm.transition = transitions[button.text]
+
+    for k, v in transitions.items():
+        btn = Factory.Button(
+            text=k,
+            on_press=update_transition
+        )
+        root.ids.box.add_widget(btn)
+
+    runTouchApp(root)
