@@ -106,15 +106,16 @@ class BlurTransition(ShaderTransition):
         void main (void) {
             vec2 center = vec2(0.5,0.5);
             vec2 toUV = tex_coord0.st - center;
-            vec2 normToUV = toUV;
 
             vec4 c1 = vec4(0,0,0,0);
             int count = 24;
             float s = t * 0.02;
 
             for(int i=0; i<count; i++)
-                c1 += vec4(texture2D(tex_out, tex_coord0.st -
-                                     normToUV * vec2(s,s) * vec2(i,i)));
+                c1 += texture2D(
+                    tex_out,
+                    tex_coord0.st - toUV * vec2(s,s) * vec2(i,i)
+                );
 
             c1 /= vec4(count,count,count,count);
             vec4 c2 = vec4(texture2D(tex_in, tex_coord0.st));
@@ -255,3 +256,188 @@ class RotateTransition(ShaderTransition):
             self.fs = self.ROTATE_TRANSITION_UP
         if largs[0] == 'down':
             self.fs = self.ROTATE_TRANSITION_DOWN
+
+
+class FastSlideTransition(ShaderTransition):
+    direction = OptionProperty('left', options=('left', 'right', 'up', 'down'))
+    '''Direction of the transition.
+
+    :data:`direction` is an :class:`~kivy.properties.OptionProperty`, default
+    to left. Can be one of 'left', 'right', 'up' or 'down'.
+    '''
+
+    FAST_SLIDE_TRANSITION_LEFT = '''
+    $HEADER$
+    uniform float t;
+    uniform sampler2D tex_in;
+    uniform sampler2D tex_out;
+
+    uniform vec2 resolution;
+
+    float x2, n;
+    float BLURMAX = 50.;
+    float T = smoothstep(0., 1., t);
+    void main(void){
+        vec4 c = vec4(0., 0., 0., 0.);
+        if (tex_coord0.x < 1. - T) {
+            float squash = mix(.95, 1., pow(1. - t, 2.));
+            float y = .5 + (tex_coord0.y - .5) / squash;
+            float x = tex_coord0.x + T;
+
+            if (0. < y && y < 1.) {
+                for (n=0.; n < BLURMAX; n+=1.) {
+                    x2 = x - n / resolution.x;
+                    if (0. <= x2 && x2 <= 1.)
+                        c += texture2D(tex_out, vec2(x2, y)) / BLURMAX;
+                }
+                gl_FragColor = mix(c, texture2D(tex_out, vec2(x, y)), pow(1. - t, 5.));
+            } else
+                gl_FragColor = vec4(0, 0, 0, 0);
+        } else {
+            float squash = mix(.95, 1., pow(t, 2.));
+            float y = .5 + (tex_coord0.y - .5) / squash;
+            float x = tex_coord0.x - 1. + T;
+
+            if (0. < y && y < 1.) {
+                for (n=0.; n < BLURMAX; n+=1.) {
+                    x2 = x - n / resolution.x;
+                    if (0. < x2 && x2 < 1.)
+                        c += texture2D(tex_in, vec2(x2, y)) / BLURMAX;
+                }
+                gl_FragColor = mix(c, texture2D(tex_in, vec2(x, y)), pow(t, 5.));
+            } else
+                gl_FragColor = vec4(0, 0, 0, 0);
+        }
+    }
+    '''  # noqa
+
+    FAST_SLIDE_TRANSITION_RIGHT = '''
+    $HEADER$
+    uniform float t;
+    uniform sampler2D tex_in;
+    uniform sampler2D tex_out;
+
+    uniform vec2 resolution;
+
+    float x2, n;
+    float T = smoothstep(1., 0., t);
+    float BLURMAX = 50.;
+    void main(void){
+        vec4 c = vec4(0., 0., 0., 0.);
+        if (tex_coord0.x < 1. - T) {
+            float squash = mix(.95, 1., pow(t, 2.));
+            float y = .5 + (tex_coord0.y - .5) / squash;
+            float x = tex_coord0.x + T;
+
+            if (0. < y && y < 1.) {
+                for (n=0.; n < BLURMAX; n+=1.) {
+                    x2 = x - n / resolution.x;
+                    if (0. <= x2 && x2 <= 1.)
+                        c += texture2D(tex_in, vec2(x2, y)) / BLURMAX;
+                }
+                gl_FragColor = mix(c, texture2D(tex_in, vec2(x, y)), pow(t, 5.));
+            } else
+                gl_FragColor = vec4(0, 0, 0, 0);
+        } else {
+            float squash = mix(.95, 1., pow(1. - t, 2.));
+            float y = .5 + (tex_coord0.y - .5) / squash;
+            float x = tex_coord0.x - 1. + T;
+
+            if (0. < y && y < 1.) {
+                for (n=0.; n < BLURMAX; n+=1.) {
+                    x2 = x - n / resolution.x;
+                    if (0. <= x2 && x2 <= 1.)
+                        c += texture2D(tex_out, vec2(x2, y)) / BLURMAX;
+                }
+                gl_FragColor = mix(c, texture2D(tex_out, vec2(x, y)), pow(1. - t, 5.));
+            } else
+                gl_FragColor = vec4(0, 0, 0, 0);
+        }
+    }
+    '''  # noqa
+    fs = StringProperty()
+
+    def __init__(self, **kwargs):
+        self.on_direction(self, kwargs.get('direction', 'left'))
+        super(FastSlideTransition, self).__init__(**kwargs)
+
+    def on_progress(self, progress):
+        self.render_ctx['resolution'] = map(float, self.screen_out.size)
+        super(FastSlideTransition, self).on_progress(progress)
+
+    def on_direction(self, *largs):
+        print largs[1]
+        if largs[1] == 'left':
+            self.fs = self.FAST_SLIDE_TRANSITION_LEFT
+        if largs[1] == 'right':
+            self.fs = self.FAST_SLIDE_TRANSITION_RIGHT
+        # if largs[0] == 'up':
+        #     self.fs = ROTATE_TRANSITION_UP
+        # if largs[0] == 'down':
+        #     self.fs = ROTATE_TRANSITION_DOWN
+
+
+KV = '''
+FloatLayout:
+    ScreenManager:
+        id: sm
+        Screen:
+            name: '0'
+            Image:
+                source: '../examples/demo/pictures/images/Bubbles.jpg'
+                allow_stretch: True
+        Screen:
+            name: '1'
+            Image:
+                source: '../examples/demo/pictures/images/faust_github.jpg'
+                allow_stretch: True
+
+    GridLayout:
+        id: box
+        size_hint: .5, .2
+        pos_hint: {'center_x': .5, 'y': 0}
+        cols: 2
+
+    Button:
+        text: 'previous'
+        size_hint: None, None
+        size: 100, 48
+        pos_hint: {'center_y': .5}
+        on_press:
+            if hasattr(sm.transition, 'direction'): sm.transition.direction = 'left'
+            sm.current = sm.previous()
+
+    Button:
+        text: 'next'
+        size_hint: None, None
+        size: 100, 48
+        pos_hint: {'center_y': .5, 'right': 1}
+        on_press:
+            if hasattr(sm.transition, 'direction'): sm.transition.direction = 'right'
+            sm.current = sm.next()
+'''  # noqa
+
+if __name__ == '__main__':
+    transitions = {
+        k: v(duration=.5) for k, v in globals().items()
+        if isinstance(v, type) and
+        issubclass(v, ShaderTransition)
+    }
+
+    from kivy.lang import Builder
+    from kivy.base import runTouchApp
+    from kivy.factory import Factory
+
+    root = Builder.load_string(KV)
+
+    def update_transition(button):
+        root.ids.sm.transition = transitions[button.text]
+
+    for k, v in transitions.items():
+        btn = Factory.Button(
+            text=k,
+            on_press=update_transition
+        )
+        root.ids.box.add_widget(btn)
+
+    runTouchApp(root)
