@@ -266,6 +266,51 @@ class FastSlideTransition(ShaderTransition):
     to left. Can be one of 'left', 'right', 'up' or 'down'.
     '''
 
+    FAST_SLIDE_TRANSITION_UP = '''
+    $HEADER$
+    uniform float t;
+    uniform sampler2D tex_in;
+    uniform sampler2D tex_out;
+
+    uniform vec2 resolution;
+
+    float y2, n;
+    float BLURMAX = 50.;
+    float T = smoothstep(0., 1., t);
+    void main(void){
+        vec4 c = vec4(0., 0., 0., 0.);
+        if (tex_coord0.y < 1. - T) {
+            float squash = mix(.95, 1., pow(1. - t, 2.));
+            float x = .5 + (tex_coord0.x - .5) / squash;
+            float y = tex_coord0.y + T;
+
+            if (0. < x && x < 1.) {
+                for (n=0.; n < BLURMAX; n+=1.) {
+                    y2 = y - n / resolution.y;
+                    if (0. <= y2 && y2 <= 1.)
+                        c += texture2D(tex_out, vec2(x, y2)) / BLURMAX;
+                }
+                gl_FragColor = mix(c, texture2D(tex_out, vec2(x, y)), pow(1. - t, 5.));
+            } else
+                gl_FragColor = vec4(0, 0, 0, 0);
+        } else {
+            float squash = mix(.95, 1., pow(t, 2.));
+            float x = .5 + (tex_coord0.x - .5) / squash;
+            float y = tex_coord0.y - 1. + T;
+
+            if (0. < x && x < 1.) {
+                for (n=0.; n < BLURMAX; n+=1.) {
+                    y2 = y - n / resolution.y;
+                    if (0. < y2 && y2 < 1.)
+                        c += texture2D(tex_in, vec2(x, y2)) / BLURMAX;
+                }
+                gl_FragColor = mix(c, texture2D(tex_in, vec2(x, y)), pow(t, 5.));
+            } else
+                gl_FragColor = vec4(0, 0, 0, 0);
+        }
+    }
+    '''  # noqa
+
     FAST_SLIDE_TRANSITION_LEFT = '''
     $HEADER$
     uniform float t;
@@ -311,6 +356,50 @@ class FastSlideTransition(ShaderTransition):
     }
     '''  # noqa
 
+    FAST_SLIDE_TRANSITION_DOWN = '''
+    $HEADER$
+    uniform float t;
+    uniform sampler2D tex_in;
+    uniform sampler2D tex_out;
+
+    uniform vec2 resolution;
+
+    float y2, n;
+    float T = smoothstep(1., 0., t);
+    float BLURMAX = 50.;
+    void main(void){
+        vec4 c = vec4(0., 0., 0., 0.);
+        if (tex_coord0.y < 1. - T) {
+            float squash = mix(.95, 1., pow(t, 2.));
+            float x = .5 + (tex_coord0.x - .5) / squash;
+            float y = tex_coord0.y + T;
+
+            if (0. < x && x < 1.) {
+                for (n=0.; n < BLURMAX; n+=1.) {
+                    y2 = y - n / resolution.y;
+                    if (0. <= y2 && y2 <= 1.)
+                        c += texture2D(tex_in, vec2(x, y2)) / BLURMAX;
+                }
+                gl_FragColor = mix(c, texture2D(tex_in, vec2(x, y)), pow(t, 5.));
+            } else
+                gl_FragColor = vec4(0, 0, 0, 0);
+        } else {
+            float squash = mix(.95, 1., pow(1. - t, 2.));
+            float x = .5 + (tex_coord0.x - .5) / squash;
+            float y = tex_coord0.y - 1. + T;
+
+            if (0. < x && x < 1.) {
+                for (n=0.; n < BLURMAX; n+=1.) {
+                    y2 = y - n / resolution.y;
+                    if (0. <= y2 && y2 <= 1.)
+                        c += texture2D(tex_out, vec2(x, y2)) / BLURMAX;
+                }
+                gl_FragColor = mix(c, texture2D(tex_out, vec2(x, y)), pow(1. - t, 5.));
+            } else
+                gl_FragColor = vec4(0, 0, 0, 0);
+        }
+    }
+    '''  # noqa
     FAST_SLIDE_TRANSITION_RIGHT = '''
     $HEADER$
     uniform float t;
@@ -369,12 +458,12 @@ class FastSlideTransition(ShaderTransition):
         print largs[1]
         if largs[1] == 'left':
             self.fs = self.FAST_SLIDE_TRANSITION_LEFT
-        if largs[1] == 'right':
+        elif largs[1] == 'right':
             self.fs = self.FAST_SLIDE_TRANSITION_RIGHT
-        # if largs[0] == 'up':
-        #     self.fs = ROTATE_TRANSITION_UP
-        # if largs[0] == 'down':
-        #     self.fs = ROTATE_TRANSITION_DOWN
+        elif largs[1] == 'up':
+            self.fs = self.FAST_SLIDE_TRANSITION_UP
+        elif largs[1] == 'down':
+            self.fs = self.FAST_SLIDE_TRANSITION_DOWN
 
 
 KV = '''
