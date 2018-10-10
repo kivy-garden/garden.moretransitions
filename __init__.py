@@ -22,7 +22,9 @@ __all__ = (
     'RippleTransition',
     'BlurTransition',
     'RVBTransition',
-    'RotateTransition'
+    'RotateTransition',
+    'TileTransition',
+    'FastSlideTransition',
 )
 
 from kivy.uix.screenmanager import ShaderTransition
