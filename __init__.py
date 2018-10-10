@@ -26,7 +26,134 @@ __all__ = (
 )
 
 from kivy.uix.screenmanager import ShaderTransition
-from kivy.properties import StringProperty, OptionProperty
+from kivy.properties import StringProperty, OptionProperty, NumericProperty
+
+class TileTransition(ShaderTransition):
+    TILE_TRANSITION_FS = '''
+        // Author: Tshirtman, with inspiration from https://gl-transitions.com/editor/GridFlip
+        // ported by gre from https://gist.github.com/TimDonselaar/9bcd1c4b5934ba60087bdb55c2ea92e5
+
+        #version 130
+        $HEADER$
+
+        uniform float t;
+        uniform sampler2D tex_in;
+        uniform sampler2D tex_out;
+
+        const float s2 = sqrt(2.0);
+
+        vec2 resolution = textureSize(tex_out, 0);
+
+        ivec2 size = ivec2(8, 8);
+        float pause= 0.1;
+
+        vec4 bgcolor = vec4(1.0, 1.0, 1.0, 1.0);
+        float randomness = 0.0;
+
+        float rand (vec2 co) {
+            return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
+        float getDelta(vec2 p) {
+          vec2 rectanglePos = floor(vec2(size) * p);
+          vec2 rectangleSize = vec2(1.0 / vec2(size).x, 1.0 / vec2(size).y);
+          float top = rectangleSize.y * (rectanglePos.y + 1.0);
+          float bottom = rectangleSize.y * rectanglePos.y;
+          float left = rectangleSize.x * rectanglePos.x;
+          float right = rectangleSize.x * (rectanglePos.x + 1.0);
+          float minX = min(abs(p.x - left), abs(p.x - right));
+          float minY = min(abs(p.y - top), abs(p.y - bottom));
+          return min(minX, minY);
+        }
+
+        mat2 rot(float angle) {
+            return mat2(
+                cos(angle), -sin(angle),
+                sin(angle), cos(angle)
+            );
+        }
+
+        float dist_to_line(vec2 pt1, vec2 pt2, vec2 testPt) {
+            vec2 lineDir = pt2 - pt1;
+            vec2 perpDir = vec2(lineDir.y, -lineDir.x);
+            vec2 dirToPt1 = pt1 - testPt;
+            return (dot(normalize(perpDir), dirToPt1));
+        }
+
+        vec2 my_tile(vec2 p, vec2 grid) {
+           // return current tile's position
+           // 0___________________1
+           //0|  \ /\  /\  \/ \ / |
+           // |\  X  \/  \ /\  X  |
+           // | \/ \ /\   X  \/ \ |
+           // | /\  X  \ / \ /\  X|
+           // |/  \/ \  X   /  \/ |
+           // |\  /\  \/ \ / \ /\ |
+           // |_\/__\_/\__X___X__\|
+           //1
+
+           vec2 A = vec2(0.0,  0.0);
+           vec2 B = vec2(1.0, -1.0);
+
+           float x = floor(dist_to_line(A, B, p * grid) / s2);
+
+           A = vec2(0.0,  0.0);
+           B = vec2(1.0, 1.0);
+
+           // XXX why negate and add +1.0? no idea!
+           float y = - floor(dist_to_line(A, B, p * grid) / s2) + 1.0;
+           return vec2(x, y);
+        }
+
+        void main() {
+            vec2 p = gl_FragCoord.xy / resolution.xy;
+            float currentProg = (t - pause) / (1.0 - pause * 2.0);
+            vec2 q = p;
+            vec2 dp = 1. / resolution;
+
+            vec2 t1 = my_tile(p, vec2(float(size.x), float(size.y)));
+            float r = rand(vec2(t1)) - randomness;
+            float cp = smoothstep(0.0, 1.0 - r, currentProg);
+
+              vec2 rectanglePos = vec2(
+                  t1.x / float(size.x) + t1.y / float(size.y),
+                  t1.x / float(size.y) + t1.y / float(size.x)
+              );
+
+              float rectangleSize = 2. / (float(size.x));
+              float offset = rectanglePos.x - .5 * rectangleSize;
+
+              p.x = (p.x - offset) / abs(cp - 0.5) * 0.5 + offset;
+
+            vec2 t2 = my_tile(p, vec2(float(size.x), float(size.y)));
+            if (t1.x != t2.x || t1.y != t2.y)
+                gl_FragColor = bgcolor;
+            else {
+                vec4 a = texture2D(tex_out, p);
+                vec4 b = texture2D(tex_in, p);
+
+                float s = 1.;
+                float sr = 1.;
+                if (t < pause) {
+                    sr = t / pause;
+                }
+                else if (t > 1.0 - pause) {
+                    sr = 1. - (t - (1. - pause)) / pause;
+                }
+                for (int x = -1; x <= 1; x++) {
+                    for (int y = -1; y <= 1; y++) {
+                        vec2 np = p + vec2(float(x), float(y)) * dp;
+                        vec2 t3 = my_tile(np, vec2(float(size.x), float(size.y)));
+                        if (t3.x != t2.x || t3.y != t2.y)
+                            s -= sr * 1. / 9.;
+                    }
+                }
+                gl_FragColor = mix(bgcolor, mix(b, a, step(cp, 0.5)), s);
+            }
+        }
+    '''
+    fs = StringProperty(TILE_TRANSITION_FS)
+
 
 class PixelTransition(ShaderTransition):
 
@@ -447,7 +574,7 @@ class FastSlideTransition(ShaderTransition):
     fs = StringProperty()
 
     def __init__(self, **kwargs):
-        self.on_direction(self, kwargs.get('direction', 'left'))
+        self.on_direction(self, kwargs.get('direction', 'down'))
         super(FastSlideTransition, self).__init__(**kwargs)
 
     def on_progress(self, progress):
@@ -464,6 +591,51 @@ class FastSlideTransition(ShaderTransition):
             self.fs = self.FAST_SLIDE_TRANSITION_UP
         elif largs[1] == 'down':
             self.fs = self.FAST_SLIDE_TRANSITION_DOWN
+
+
+class ShatterTransition(ShaderTransition):
+    direction = OptionProperty('left', options=('left', 'right', 'up', 'down'))
+    '''Direction of the transition.
+
+    :data:`direction` is an :class:`~kivy.properties.OptionProperty`, default
+    to left. Can be one of 'left', 'right', 'up' or 'down'.
+    '''
+    rows = NumericProperty(10)
+    cols = NumericProperty(10)
+
+    SHATTER_TRANSITION_UP = '''
+    $HEADER$
+    uniform float t;
+    uniform sampler2D tex_in;
+    uniform sampler2D tex_out;
+    uniform vec2 resolution;
+    uniform float rows, cols;
+
+    void main(void){
+        float X, Y;
+        X = floor(coords.x / cols);
+        Y = floor(coords.y / rows);
+        
+    }
+    '''
+
+    def on_cols(self, *largs):
+        self.render_ctx['cols'] = self.cols
+
+    def on_rows(self, *largs):
+        self.render_ctx['rows'] = self.rows
+
+    def on_direction(self, *largs):
+        print largs[1]
+        if largs[1] == 'left':
+            self.fs = self.SHATTER_TRANSITION_UP
+        elif largs[1] == 'right':
+            self.fs = self.SHATTER_TRANSITION_UP
+        elif largs[1] == 'up':
+            self.fs = self.SHATTER_TRANSITION_UP
+        elif largs[1] == 'down':
+            self.fs = self.SHATTER_TRANSITION_UP
+
 
 
 KV = '''
@@ -493,7 +665,7 @@ FloatLayout:
         size: 100, 48
         pos_hint: {'center_y': .5}
         on_press:
-            if hasattr(sm.transition, 'direction'): sm.transition.direction = 'left'
+            # if hasattr(sm.transition, 'direction'): sm.transition.direction = 'left'
             sm.current = sm.previous()
 
     Button:
@@ -502,7 +674,7 @@ FloatLayout:
         size: 100, 48
         pos_hint: {'center_y': .5, 'right': 1}
         on_press:
-            if hasattr(sm.transition, 'direction'): sm.transition.direction = 'right'
+            # if hasattr(sm.transition, 'direction'): sm.transition.direction = 'right'
             sm.current = sm.next()
 '''  # noqa
 
