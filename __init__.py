@@ -298,7 +298,7 @@ class RVBTransition(ShaderTransition):
     fs = StringProperty(RVB_TRANSITION_FS)
 
     def on_progress(self, progress):
-        self.render_ctx['resolution'] = map(float, self.screen_out.size)
+        self.render_ctx['resolution'] = [float(wh) for wh in self.screen_out.size]
         super(RVBTransition, self).on_progress(progress)
 
 
@@ -580,11 +580,10 @@ class FastSlideTransition(ShaderTransition):
         super(FastSlideTransition, self).__init__(**kwargs)
 
     def on_progress(self, progress):
-        self.render_ctx['resolution'] = map(float, self.screen_out.size)
+        self.render_ctx['resolution'] = [float(wh) for wh in self.screen_out.size]
         super(FastSlideTransition, self).on_progress(progress)
 
     def on_direction(self, *largs):
-        print largs[1]
         if largs[1] == 'left':
             self.fs = self.FAST_SLIDE_TRANSITION_LEFT
         elif largs[1] == 'right':
@@ -617,7 +616,7 @@ class ShatterTransition(ShaderTransition):
         float X, Y;
         X = floor(coords.x / cols);
         Y = floor(coords.y / rows);
-        
+
     }
     '''
 
@@ -628,7 +627,6 @@ class ShatterTransition(ShaderTransition):
         self.render_ctx['rows'] = self.rows
 
     def on_direction(self, *largs):
-        print largs[1]
         if largs[1] == 'left':
             self.fs = self.SHATTER_TRANSITION_UP
         elif largs[1] == 'right':
