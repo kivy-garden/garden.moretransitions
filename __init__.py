@@ -526,7 +526,7 @@ class ShatterTransition(ShaderTransition):
 class PageCurlTransition(ShaderTransition):
     direction = OptionProperty("Bottom_to_Top", options=["Bottom_to_Top", "Top_to_Bottom"])
 
-    fs = """
+    PAGE_CURL_TRANSITION_FS = """
     $HEADER$
 
     #define pi 3.14159265359
@@ -596,7 +596,7 @@ class PageCurlTransition(ShaderTransition):
     }
     """
 
-    fs = StringProperty(fs)
+    fs = StringProperty(PAGE_CURL_TRANSITION_FS)
     clearcolor = ColorProperty([0, 0, 0, 0])
 
     def add_screen(self, screen):
