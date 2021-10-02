@@ -524,7 +524,7 @@ class ShatterTransition(ShaderTransition):
 
 
 class PageCurlTransition(ShaderTransition):
-    direction = OptionProperty("Bottom_to_Top", options=["Bottom_to_Top", "Top_to_Bottom"])
+    direction = OptionProperty("bottom-top", options=["bottom-top", "top-bottom"])
 
     PAGE_CURL_TRANSITION_FS = """
     $HEADER$
@@ -608,7 +608,7 @@ class PageCurlTransition(ShaderTransition):
         
         self.render_ctx["aspect"] = 1.0 * (aspect_ratio > 1.0) + 2.0 * (1.0 >= aspect_ratio)
 
-        if self.direction == "Bottom_to_Top":
+        if self.direction == "bottom-top":
             self.render_ctx["direction"] = 1.0
         
         else:
