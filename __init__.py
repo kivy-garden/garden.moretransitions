@@ -25,6 +25,7 @@ __all__ = (
     'RotateTransition',
     'TileTransition',
     'FastSlideTransition',
+    'PageCurlTransition',
 )
 
 from kivy.uix.screenmanager import ShaderTransition
